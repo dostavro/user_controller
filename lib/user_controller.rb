@@ -3,7 +3,6 @@ require 'omf_common'
 
 $stdout.sync = true
 
-OmfCommon::Auth::CertificateStore.init
 
 module OmfRc::ResourceProxy::UserController
   include OmfRc::ResourceProxyDSL
@@ -53,9 +52,9 @@ module OmfRc::ResourceProxy::User
   property :app_id, :default => nil
   property :binary_path, :default => '/usr/sbin/useradd'
   property :map_err_to_out, :default => false
-  property :certificate
 
-  configure :certificate do |res, value|
+  configure :cert do |res, value|
+    puts "CERTIFICATE #{value.inspect}"
     #TODO
   end
 
@@ -85,7 +84,6 @@ module OmfRc::ResourceProxy::User
       logger.info "App Event from '#{app_id}' - #{event_type}: '#{msg}'"
       if event_type == 'EXIT'
         if msg == 0 #only when user creation succeeds, create a new public key and save it to /home/username/.ssh/
-          root = OmfCommon::Auth::Certificate.create(nil, 'omf_ca', 'ca', 'omf', nil, Time.now, 3600 * 365 * 10)
           key = OpenSSL::PKey::RSA.new(2048)
 
           pub_key = key.public_key
@@ -139,11 +137,19 @@ module OmfRc::ResourceProxy::User
   end
 end
 
+entity = OmfCommon::Auth::Certificate.create_from_x509(File.read("/home/dostavro/.omf/urc.pem"),
+                                                       File.read("/home/dostavro/.omf/user_rc_key.pem"))
 
-OmfCommon.init(:development, communication: { url: 'xmpp://alpha:1234@localhost' }) do
+
+OmfCommon.init(:development, communication: { url: 'xmpp://alpha:pw@localhost', auth: {} }) do
   OmfCommon.comm.on_connected do |comm|
+
+    OmfCommon::Auth::CertificateStore.instance.register_default_certs("/home/dostavro/.omf/trusted_roots/")
+    OmfCommon::Auth::CertificateStore.instance.register(entity, OmfCommon.comm.local_topic.address)
+    OmfCommon::Auth::CertificateStore.instance.register(entity)
+
     info "UserController >> Connected to XMPP server"
-    userContr = OmfRc::ResourceFactory.create(:userController, uid: 'userController')
+    userContr = OmfRc::ResourceFactory.create(:userController, { uid: 'userController', certificate: entity })
     comm.on_interrupted { userContr.disconnect }
   end
 end
