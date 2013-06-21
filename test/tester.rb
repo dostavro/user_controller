@@ -15,7 +15,18 @@ def create_user(controller)
       # to make sure the operation in the block executed only when subscribed to the newly created engine's topic
       user.on_subscribed do
         info ">>> Connected to newly created user #{reply_msg[:hrn]}(id: #{reply_msg[:res_id]})"
-
+        user.on_message do |m|
+          if m.operation == :inform
+            if m.read_content("itype").eql?('STATUS')
+              if m.read_property("status_type") == 'APP_EVENT'
+                puts "Succesfully created user"
+                am_cert = OmfCommon::Auth::CertificateStore.instance.cert_for(OmfCommon.comm.local_topic.address)
+                user_cert = am_cert.create_for("aris", "aris", 'slice', 'omf', 3600 * 365 * 10, m.read_property('pub_key'))
+                user.configure(cert: user_cert.to_pem)
+              end
+            end
+          end
+        end
       end
 
       # Then later on, we will ask garage again to release this engine.
@@ -39,8 +50,15 @@ def release_user(controller, user)
   end
 end
 
-OmfCommon.init(:development, communication: { url: 'xmpp://beta:1234@localhost' }) do
+entity = OmfCommon::Auth::Certificate.create_from_x509(File.read("/home/ardadouk/.omf/urc.pem"),
+                                                       File.read("/home/ardadouk/.omf/user_rc_key.pem"))
+
+OmfCommon.init(:development, communication: { url: 'xmpp://beta:1234@localhost' , auth: {}}) do
   OmfCommon.comm.on_connected do |comm|
+    OmfCommon::Auth::CertificateStore.instance.register_default_certs("/home/ardadouk/.omf/trusted_roots/")
+    OmfCommon::Auth::CertificateStore.instance.register(entity, OmfCommon.comm.local_topic.address)
+    OmfCommon::Auth::CertificateStore.instance.register(entity)
+
     info "Test script >> Connected to XMPP"
 
     comm.subscribe('userController') do |controller|
