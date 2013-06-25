@@ -169,7 +169,7 @@ module OmfRc::ResourceProxy::User
   work('build_command_line') do |res|
     cmd_line = "env -i " # Start with a 'clean' environment
     cmd_line += res.property.binary_path + " " # the /usr/sbin/useradd
-    cmd_line += res.property.username + " -m"  # the username and -m for adding folder
+    cmd_line += " -m -s /bin/bash #{res.property.username}"  # the username, -m for adding folder -s for default shell to /bin/bash, removed -d /home/#{res.property.username}
     cmd_line
   end
 end
