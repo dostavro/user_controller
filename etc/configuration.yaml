@@ -1,0 +1,9 @@
+:xmpp:
+  :username: user_rc
+  :password: pw
+  :server: localhost
+:auth:
+  :root_cert_dir: ~/.omf/trusted_roots
+  :entity_cert: ~/.omf/urc.pem
+  :entity_key: ~/.omf/user_rc_key.pem
+

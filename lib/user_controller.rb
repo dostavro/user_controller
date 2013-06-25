@@ -1,8 +1,13 @@
 require 'omf_rc'
 require 'omf_common'
+require 'yaml'
 
 $stdout.sync = true
 
+
+@config = YAML.load_file('../etc/configuration.yaml')
+@auth = @config[:auth]
+@xmpp = @config[:xmpp]
 
 module OmfRc::ResourceProxy::UserController
   include OmfRc::ResourceProxyDSL
@@ -55,7 +60,7 @@ module OmfRc::ResourceProxy::User
 
   configure :cert do |res, value|
     #puts "CERTIFICATE #{value.inspect}"
-    path = "/home/#{res.property.username}/.omf/trusted_roots/"
+    path = "/home/#{res.property.username}/.omf/"
     unless File.directory?(path)#create the directory if it doesn't exist (it will never exist)
       FileUtils.mkdir_p(path)
     end
@@ -64,7 +69,11 @@ module OmfRc::ResourceProxy::User
   end
 
   configure :auth_keys do |res, value|
-
+    File.open("/home/#{res.property.username}/.ssh/authorized_keys", 'a') do |file|
+      value.each do |v|
+        file.puts v
+      end
+    end
   end
 
   #hook :before_ready do |user|
@@ -165,12 +174,15 @@ module OmfRc::ResourceProxy::User
   end
 end
 
-entity = OmfCommon::Auth::Certificate.create_from_x509(File.read("/home/ardadouk/.omf/urc.pem"),
-                                                       File.read("/home/ardadouk/.omf/user_rc_key.pem"))
+entity_cert = File.expand_path(@auth[:entity_cert])
+entity_key = File.expand_path(@auth[:entity_key])
+entity = OmfCommon::Auth::Certificate.create_from_x509(File.read(entity_cert), File.read(entity_key))
 
-OmfCommon.init(:development, communication: { url: 'xmpp://alpha:1234@localhost', auth: {} }) do
+trusted_roots = File.expand_path(@auth[:root_cert_dir])
+
+OmfCommon.init(:development, communication: { url: "xmpp://#{@xmpp[:username]}:#{@xmpp[:password]}@#{@xmpp[:server]}", auth: {} }) do
   OmfCommon.comm.on_connected do |comm|
-    OmfCommon::Auth::CertificateStore.instance.register_default_certs("/home/ardadouk/.omf/trusted_roots/")
+    OmfCommon::Auth::CertificateStore.instance.register_default_certs(trusted_roots)
     OmfCommon::Auth::CertificateStore.instance.register(entity, OmfCommon.comm.local_topic.address)
     OmfCommon::Auth::CertificateStore.instance.register(entity)
 
