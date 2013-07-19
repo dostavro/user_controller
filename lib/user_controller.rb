@@ -69,7 +69,7 @@ module OmfRc::ResourceProxy::User
   end
 
   configure :auth_keys do |res, value|
-    File.open("/home/#{res.property.username}/.ssh/authorized_keys", 'a') do |file|
+    File.open("/home/#{res.property.username}/.ssh/authorized_keys", 'w') do |file|
       value.each do |v|
         file.puts v
       end
